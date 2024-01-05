@@ -12,6 +12,8 @@ Collection of Golang `log/slog` logger extensions and related wrappers.
 - [`github.com/vgarvardt/slogex/observer`](#githubcomvgarvardtslogexobserver) - `slog.Handler` implementation that keeps
   log records in memory. Useful for applications that want to test log output. Heavily inspired
   by `go.uber.org/zap/zaptest/observer`.
+- [`github.com/vgarvardt/slogex/fxlogger`](#githubcomvgarvardtslogexfxlogger) - `go.uber.org/fx/fxevent.Logger`
+  implementation.
 
 ## Examples
 
@@ -21,22 +23,48 @@ Collection of Golang `log/slog` logger extensions and related wrappers.
 package something_test
 
 import (
-	"log/slog"
-	"testing"
+    "log/slog"
+    "testing"
 
-	"github.com/vgarvardt/slogex/observer"
+    "github.com/vgarvardt/slogex/observer"
 )
 
 func TestSomeLogs(t *testing.T) {
-	handler, logs := observer.New(nil)
+    handler, logs := observer.New(nil)
 
-	logger := slog.New(handler).With(slog.Int("i", 1))
-	logger.Info("foo")
+    logger := slog.New(handler).With(slog.Int("i", 1))
+    logger.Info("foo")
 
-	loggerRecords := logs.All()
-	for _, r := range loggerRecords {
-		t.Log(r.Record.Level, r.Record.Message, r.Attrs)
-	}
+    loggerRecords := logs.All()
+    for _, r := range loggerRecords {
+        t.Log(r.Record.Level, r.Record.Message, r.Attrs)
+    }
+}
+
+```
+
+## `github.com/vgarvardt/slogex/fxlogger`
+
+```go
+package main
+
+import (
+    "log/slog"
+
+    "go.uber.org/fx"
+    "go.uber.org/fx/fxevent"
+
+    "github.com/vgarvardt/slogex/fxlogger"
+)
+
+func FxOptions() []fx.Option {
+    return []fx.Option{
+        fx.WithLogger(func(logger *slog.Logger) fxevent.Logger {
+            return &fxlogger.Logger{
+                Logger: logger.With(slog.String("source", "fx")),
+            }
+        }),
+    }
 }
 
 ```

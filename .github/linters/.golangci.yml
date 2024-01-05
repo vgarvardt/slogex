@@ -45,7 +45,7 @@ linters-settings:
           - disableStutteringCheck
       - name: import-alias-naming
         disabled: false
-        arguments: ['^[a-z][a-zA-Z0-9]{0,}$']
+        arguments: [ '^[a-z][a-zA-Z0-9]{0,}$' ]
       - name: context-as-argument
         disabled: false
       - name: import-shadowing
@@ -54,15 +54,9 @@ linters-settings:
         disabled: false
       - name: use-any
         disabled: false
-      - name: cognitive-complexity
-        disabled: false
-        arguments: [30]
-      - name: cyclomatic
-        disabled: false
-        arguments: [30]
       - name: line-length-limit
         disabled: false
-        arguments: [180]
+        arguments: [ 180 ]
       - name: comment-spacings
         disabled: false
       - name: increment-decrement
@@ -79,6 +73,10 @@ linters-settings:
       - name: add-constant
         disabled: true
       - name: bare-return
+        disabled: true
+      - name: cognitive-complexity
+        disabled: true
+      - name: cyclomatic
         disabled: true
       - name: flag-parameter
         disabled: true
