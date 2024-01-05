@@ -58,6 +58,13 @@ func TestLoggedEntryContextMap(t *testing.T) {
 				},
 			},
 		},
+		{
+			msg: "empty key",
+			attrs: []slog.Attr{
+				slog.String("", "v"),
+			},
+			want: map[string]any{},
+		},
 	}
 
 	for _, tt := range tests {
