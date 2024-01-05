@@ -1,0 +1,48 @@
+---
+name: "Test"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: [ '1.21', 'stable' ]
+    timeout-minutes: 10
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Run tests
+        run: make test
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        if: success()
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./coverage.txt
+          fail_ci_if_error: false
+
+  summary:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: [ test ]
+    timeout-minutes: 1
+    steps:
+      - name: Dummy task
+        run: echo 'Dummy summary task to have one PR status for all tested versions'
