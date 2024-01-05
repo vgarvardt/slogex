@@ -159,6 +159,8 @@ type contextObserver struct {
 	groups []string
 }
 
+// New creates new slog.Handler that buffers logs in memory.
+// It's particularly useful in tests.
 func New(opts *slog.HandlerOptions) (slog.Handler, *ObservedLogs) {
 	if opts == nil {
 		opts = &slog.HandlerOptions{}
@@ -171,6 +173,7 @@ func New(opts *slog.HandlerOptions) (slog.Handler, *ObservedLogs) {
 	}, ol
 }
 
+// Enabled implements slog.Handler: reports whether the handler handles records at the given level.
 func (c contextObserver) Enabled(_ context.Context, level slog.Level) bool {
 	minLevel := slog.LevelInfo
 	if c.opts.Level != nil {
@@ -179,6 +182,7 @@ func (c contextObserver) Enabled(_ context.Context, level slog.Level) bool {
 	return level >= minLevel
 }
 
+// Handle implements slog.Handler: handles the Record.
 func (c contextObserver) Handle(_ context.Context, record slog.Record) error {
 	rc := record.Clone()
 	rc.AddAttrs(c.attrs...)
@@ -187,6 +191,8 @@ func (c contextObserver) Handle(_ context.Context, record slog.Record) error {
 	return nil
 }
 
+// WithAttrs implements slog.Handler: returns a new Handler whose attributes consist of
+// both the receiver's attributes and the arguments.
 func (c contextObserver) WithAttrs(attrs []slog.Attr) slog.Handler {
 	return &contextObserver{
 		opts:   c.opts,
@@ -196,6 +202,8 @@ func (c contextObserver) WithAttrs(attrs []slog.Attr) slog.Handler {
 	}
 }
 
+// WithGroup implements slog.Handler: returns a new Handler with the given group appended to
+// the receiver's existing groups.
 func (c contextObserver) WithGroup(name string) slog.Handler {
 	return &contextObserver{
 		opts:   c.opts,

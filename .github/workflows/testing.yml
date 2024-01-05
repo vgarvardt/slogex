@@ -28,7 +28,7 @@ jobs:
           go-version: ${{ matrix.go-version }}
 
       - name: Run tests
-        run: go test -timeout=2m -cover -coverprofile=coverage.txt -covermode=atomic ./...
+        run: make test
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
