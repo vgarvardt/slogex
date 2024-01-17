@@ -379,7 +379,7 @@ func TestLogger(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 
-				handler, observedLogs := observer.New(&slog.HandlerOptions{Level: slog.LevelDebug})
+				handler, observedLogs := observer.New(&observer.HandlerOptions{Level: slog.LevelDebug})
 				(&Logger{Logger: slog.New(handler)}).LogEvent(tt.give)
 
 				logs := observedLogs.TakeAll()
@@ -398,7 +398,7 @@ func TestLogger(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 
-				handler, observedLogs := observer.New(&slog.HandlerOptions{Level: slog.LevelInfo})
+				handler, observedLogs := observer.New(&observer.HandlerOptions{Level: slog.LevelInfo})
 				l := &Logger{Logger: slog.New(handler)}
 				l.UseLogLevel(slog.LevelDebug)
 				l.LogEvent(tt.give)
@@ -423,7 +423,7 @@ func TestLogger(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 
-				handler, observedLogs := observer.New(&slog.HandlerOptions{Level: slog.LevelInfo})
+				handler, observedLogs := observer.New(&observer.HandlerOptions{Level: slog.LevelInfo})
 				l := &Logger{Logger: slog.New(handler)}
 				l.UseLogLevel(slog.LevelDebug)
 				l.UseErrorLevel(slog.LevelDebug)
@@ -444,7 +444,7 @@ func TestLogger(t *testing.T) {
 		}
 
 		for _, level := range levels {
-			handler, observedLogs := observer.New(&slog.HandlerOptions{Level: level})
+			handler, observedLogs := observer.New(&observer.HandlerOptions{Level: level})
 			logger := &Logger{Logger: slog.New(handler)}
 			logger.UseLogLevel(level)
 			func() {
