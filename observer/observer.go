@@ -32,8 +32,7 @@ func (o *ObservedLogs) All() []LoggedRecord {
 	return ret
 }
 
-// TakeAll returns a copy of all the observed logs, and truncates the observed
-// slice.
+// TakeAll returns a copy of all the observed logs, and truncates the observed slice.
 func (o *ObservedLogs) TakeAll() []LoggedRecord {
 	o.mu.Lock()
 	ret := o.logs
@@ -135,18 +134,12 @@ func (o *ObservedLogs) Filter(keep func(LoggedRecord) bool) *ObservedLogs {
 	return &ObservedLogs{logs: filtered}
 }
 
-func (o *ObservedLogs) add(record slog.Record) {
+// add stores log record to the collection. Expects a record that is already prepared for storing:
+// - has no attributes
+// - attributes collection is passed alongside
+func (o *ObservedLogs) add(record slog.Record, attrs []slog.Attr) {
 	o.mu.Lock()
-
-	r := slog.NewRecord(record.Time, record.Level, record.Message, 0)
-	attrs := make([]slog.Attr, 0, record.NumAttrs())
-	record.Attrs(func(a slog.Attr) bool {
-		attrs = append(attrs, a)
-		return true
-	})
-
-	o.logs = append(o.logs, LoggedRecord{Record: r, Attrs: attrs})
-
+	o.logs = append(o.logs, LoggedRecord{Record: record, Attrs: attrs})
 	o.mu.Unlock()
 }
 
@@ -156,7 +149,7 @@ type contextObserver struct {
 	opts   slog.HandlerOptions
 	logs   *ObservedLogs
 	attrs  []slog.Attr
-	groups []string
+	groups []slog.Attr
 }
 
 // New creates new slog.Handler that buffers logs in memory.
@@ -184,31 +177,62 @@ func (c contextObserver) Enabled(_ context.Context, level slog.Level) bool {
 
 // Handle implements slog.Handler: handles the Record.
 func (c contextObserver) Handle(_ context.Context, record slog.Record) error {
-	rc := record.Clone()
-	rc.AddAttrs(c.attrs...)
+	rc := slog.NewRecord(record.Time, record.Level, record.Message, 0)
+	attrs := c.attrs[:len(c.attrs):len(c.attrs)]
 
-	c.logs.add(rc)
+	recordAttrs := make([]slog.Attr, 0, record.NumAttrs())
+	record.Attrs(func(attr slog.Attr) bool {
+		recordAttrs = append(recordAttrs, attr)
+		return true
+	})
+
+	if len(c.groups) > 0 {
+		if len(recordAttrs) > 0 {
+			currentGroupIdx := len(c.groups) - 1
+			c.groups[currentGroupIdx].Value = slog.GroupValue(append(c.groups[currentGroupIdx].Value.Group(), recordAttrs...)...)
+		}
+
+		for i := len(c.groups) - 1; i >= 1; i-- {
+			c.groups[i-1].Value = slog.GroupValue(append(c.groups[i-1].Value.Group(), c.groups[i])...)
+		}
+		attrs = append(attrs, c.groups[0])
+	} else {
+		attrs = append(recordAttrs, attrs...)
+	}
+
+	c.logs.add(rc, attrs)
 	return nil
 }
 
 // WithAttrs implements slog.Handler: returns a new Handler whose attributes consist of
 // both the receiver's attributes and the arguments.
 func (c contextObserver) WithAttrs(attrs []slog.Attr) slog.Handler {
-	return &contextObserver{
+	co := contextObserver{
 		opts:   c.opts,
 		logs:   c.logs,
-		attrs:  append(c.attrs[:len(c.attrs):len(c.attrs)], attrs...),
-		groups: c.groups,
+		groups: c.groups[:len(c.groups):len(c.groups)],
+		attrs:  c.attrs[:len(c.attrs):len(c.attrs)],
 	}
+
+	if len(c.groups) == 0 {
+		co.attrs = append(co.attrs, attrs...)
+	} else {
+		currentGroupIdx := len(co.groups) - 1
+		co.groups[currentGroupIdx].Value = slog.GroupValue(append(co.groups[currentGroupIdx].Value.Group(), attrs...)...)
+	}
+
+	return &co
 }
 
 // WithGroup implements slog.Handler: returns a new Handler with the given group appended to
 // the receiver's existing groups.
 func (c contextObserver) WithGroup(name string) slog.Handler {
-	return &contextObserver{
+	co := contextObserver{
 		opts:   c.opts,
 		logs:   c.logs,
-		attrs:  c.attrs,
-		groups: append(c.groups[:len(c.groups):len(c.groups)], name),
+		attrs:  c.attrs[:len(c.attrs):len(c.attrs)],
+		groups: append(c.groups[:len(c.groups):len(c.groups)], slog.Group(name)),
 	}
+
+	return &co
 }

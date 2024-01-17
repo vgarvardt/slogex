@@ -16,19 +16,19 @@ func assertEmpty(t testing.TB, logs *ObservedLogs) {
 }
 
 func TestObserver(t *testing.T) {
-	obs, logs := New(nil)
+	handler, logs := New(nil)
 	assertEmpty(t, logs)
 
 	t.Run("Enabled", func(t *testing.T) {
 		ctx := context.Background()
 
-		assert.False(t, obs.Enabled(ctx, slog.LevelDebug), "Observer should be disabled for Debug level.")
-		assert.True(t, obs.Enabled(ctx, slog.LevelInfo), "Observer should be enabled for Info level.")
-		assert.True(t, obs.Enabled(ctx, slog.LevelWarn), "Observer should be enabled for Warn level.")
-		assert.True(t, obs.Enabled(ctx, slog.LevelError), "Observer should be enabled for Error level.")
+		assert.False(t, handler.Enabled(ctx, slog.LevelDebug), "Observer should be disabled for Debug level.")
+		assert.True(t, handler.Enabled(ctx, slog.LevelInfo), "Observer should be enabled for Info level.")
+		assert.True(t, handler.Enabled(ctx, slog.LevelWarn), "Observer should be enabled for Warn level.")
+		assert.True(t, handler.Enabled(ctx, slog.LevelError), "Observer should be enabled for Error level.")
 	})
 
-	logger := slog.New(obs).With(slog.Int("i", 1))
+	logger := slog.New(handler).With(slog.Int("i", 1))
 	logger.Info("foo")
 	logger.Debug("bar")
 	want := []LoggedRecord{{Record: slog.Record{Message: "foo", Level: slog.LevelInfo}, Attrs: []slog.Attr{slog.Int("i", 1)}}}
@@ -50,20 +50,20 @@ func TestObserver(t *testing.T) {
 }
 
 func TestObserverWith(t *testing.T) {
-	sf1, logs := New(nil)
+	handler1, logs := New(nil)
 
 	// need to pad out enough initial fields so that the underlying slice cap()
-	// gets ahead of its len() so that the sf3/4 With append's could choose
+	// gets ahead of its len() so that the handler3/4 With append's could choose
 	// not to copy (if the implementation doesn't force them)
-	sf1 = sf1.WithAttrs([]slog.Attr{slog.Int("a", 1), slog.Int("b", 2)})
+	handler1 = handler1.WithAttrs([]slog.Attr{slog.Int("a", 1), slog.Int("b", 2)})
 
-	sf2 := sf1.WithAttrs([]slog.Attr{slog.Int("c", 3)})
-	sf3 := sf2.WithAttrs([]slog.Attr{slog.Int("d", 4)})
-	sf4 := sf2.WithAttrs([]slog.Attr{slog.Int("e", 5)})
+	handler2 := handler1.WithAttrs([]slog.Attr{slog.Int("c", 3)})
+	handler3 := handler2.WithAttrs([]slog.Attr{slog.Int("d", 4)})
+	handler4 := handler2.WithAttrs([]slog.Attr{slog.Int("e", 5)})
 	record := slog.Record{Level: slog.LevelInfo, Message: "hello"}
 
 	ctx := context.Background()
-	for i, handler := range []slog.Handler{sf2, sf3, sf4} {
+	for i, handler := range []slog.Handler{handler2, handler3, handler4} {
 		if handler.Enabled(ctx, record.Level) {
 			slog.New(handler).LogAttrs(ctx, record.Level, record.Message, slog.Int("i", i))
 		}
@@ -100,6 +100,47 @@ func TestObserverWith(t *testing.T) {
 			},
 		},
 	}, logs.AllUntimed(), "expected no field sharing between WithAttrs siblings")
+}
+
+func TestObserverWithGroup(t *testing.T) {
+	handler, logs := New(nil)
+	logger := slog.New(handler).With(slog.Int("i", 1))
+
+	t.Run("single WithGroup", func(t *testing.T) {
+		logger.WithGroup("foo").With(slog.Int("i", 2), slog.Group("bar", slog.Int("i", 3))).Info("foo")
+
+		records := logs.TakeAll()
+		require.Len(t, records, 1)
+
+		assert.Equal(t, map[string]any{
+			"i": int64(1),
+			"foo": map[string]any{
+				"i": int64(2),
+				"bar": map[string]any{
+					"i": int64(3),
+				},
+			},
+		}, records[0].AttrsMap())
+	})
+
+	t.Run("nested WithGroup", func(t *testing.T) {
+		logger.WithGroup("foo").With(slog.Int("i", 2)).WithGroup("bar").With(slog.Int("i", 3)).Info("foo", slog.Int("j", 4))
+
+		records := logs.TakeAll()
+		require.Len(t, records, 1)
+
+		// checked with the slog.NewTextHandler() - should match "msg=foo i=1 foo.i=2 foo.bar.i=3 foo.bar.j=4"
+		assert.Equal(t, map[string]any{
+			"i": int64(1),
+			"foo": map[string]any{
+				"i": int64(2),
+				"bar": map[string]any{
+					"i": int64(3),
+					"j": int64(4),
+				},
+			},
+		}, records[0].AttrsMap())
+	})
 }
 
 func TestFilters(t *testing.T) {

@@ -2,7 +2,7 @@ package observer
 
 import "log/slog"
 
-// An LoggedRecord is a log record representation suitable for direct comparison.
+// LoggedRecord is a log record representation suitable for direct comparison.
 // Record attributes are extracted to a list to allow comparing them.
 type LoggedRecord struct {
 	Record slog.Record
