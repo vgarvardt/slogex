@@ -11,8 +11,11 @@ import (
 
 // ObservedLogs is a concurrency-safe, ordered collection of observed logs.
 type ObservedLogs struct {
-	mu   sync.RWMutex
-	logs []LoggedRecord
+	mu sync.RWMutex
+
+	fixed bool
+	size  int
+	logs  []LoggedRecord
 }
 
 // Len returns the number of items in the collection.
@@ -139,14 +142,35 @@ func (o *ObservedLogs) Filter(keep func(LoggedRecord) bool) *ObservedLogs {
 // - attributes collection is passed alongside
 func (o *ObservedLogs) add(record slog.Record, attrs []slog.Attr) {
 	o.mu.Lock()
-	o.logs = append(o.logs, LoggedRecord{Record: record, Attrs: attrs})
+	o.size++
+	if o.fixed && o.size > cap(o.logs) {
+		copy(o.logs[0:], o.logs[1:])
+		o.size--
+		o.logs[o.size-1] = LoggedRecord{Record: record, Attrs: attrs}
+	} else {
+		o.logs = append(o.logs, LoggedRecord{Record: record, Attrs: attrs})
+	}
 	o.mu.Unlock()
 }
 
 var _ slog.Handler = (*contextObserver)(nil)
 
+// HandlerOptions are options for an observer Handler.
+type HandlerOptions struct {
+	// Level reports the minimum record level that will be logged.
+	// The handler discards records with lower levels.
+	// If Level is nil, the handler assumes slog.LevelInfo.
+	// The handler calls Level.Level for each record processed;
+	// to adjust the minimum level dynamically, use a LevelVar.
+	Level slog.Leveler
+
+	// MaxLogs is the maximum number of logs to store. If this is zero, the
+	// default, then the number of logs stored is unlimited.
+	MaxLogs int
+}
+
 type contextObserver struct {
-	opts   slog.HandlerOptions
+	opts   HandlerOptions
 	logs   *ObservedLogs
 	attrs  []slog.Attr
 	groups []slog.Attr
@@ -154,12 +178,16 @@ type contextObserver struct {
 
 // New creates new slog.Handler that buffers logs in memory.
 // It's particularly useful in tests.
-func New(opts *slog.HandlerOptions) (slog.Handler, *ObservedLogs) {
+func New(opts *HandlerOptions) (slog.Handler, *ObservedLogs) {
 	if opts == nil {
-		opts = &slog.HandlerOptions{}
+		opts = &HandlerOptions{}
 	}
 
-	ol := &ObservedLogs{}
+	ol := &ObservedLogs{fixed: opts.MaxLogs > 0}
+	if opts.MaxLogs > 0 {
+		ol.logs = make([]LoggedRecord, 0, opts.MaxLogs)
+	}
+
 	return &contextObserver{
 		opts: *opts,
 		logs: ol,
@@ -172,6 +200,7 @@ func (c contextObserver) Enabled(_ context.Context, level slog.Level) bool {
 	if c.opts.Level != nil {
 		minLevel = c.opts.Level.Level()
 	}
+
 	return level >= minLevel
 }
 

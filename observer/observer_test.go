@@ -144,7 +144,7 @@ func TestObserverWithGroup(t *testing.T) {
 }
 
 func TestFilters(t *testing.T) {
-	logs := []LoggedRecord{
+	records := []LoggedRecord{
 		{
 			Record: slog.Record{Level: slog.LevelInfo, Message: "log a"},
 			Attrs:  []slog.Attr{slog.String("fStr", "1"), slog.Int("a", 1)},
@@ -191,11 +191,11 @@ func TestFilters(t *testing.T) {
 		},
 	}
 
-	handler, sink := New(nil)
+	handler, logs := New(nil)
 	logger := slog.New(handler)
 	ctx := context.Background()
 
-	for _, log := range logs {
+	for _, log := range records {
 		logger.LogAttrs(ctx, log.Record.Level, log.Record.Message, log.Attrs...)
 	}
 
@@ -206,71 +206,71 @@ func TestFilters(t *testing.T) {
 	}{
 		{
 			msg:      "filter by message",
-			filtered: sink.FilterMessage("log a"),
-			want:     logs[0:2],
+			filtered: logs.FilterMessage("log a"),
+			want:     records[0:2],
 		},
 		{
 			msg:      "filter by field",
-			filtered: sink.FilterAttr(slog.String("fStr", "1")),
-			want:     logs[0:1],
+			filtered: logs.FilterAttr(slog.String("fStr", "1")),
+			want:     records[0:1],
 		},
 		{
 			msg:      "filter by message and field",
-			filtered: sink.FilterMessage("log a").FilterAttr(slog.Int("b", 2)),
-			want:     logs[1:2],
+			filtered: logs.FilterMessage("log a").FilterAttr(slog.Int("b", 2)),
+			want:     records[1:2],
 		},
 		{
 			msg:      "filter by field with duplicate fields",
-			filtered: sink.FilterAttr(slog.Int("a", 2)),
-			want:     logs[3:4],
+			filtered: logs.FilterAttr(slog.Int("a", 2)),
+			want:     records[3:4],
 		},
 		{
 			msg:      "filter doesn't match any messages",
-			filtered: sink.FilterMessage("no match"),
+			filtered: logs.FilterMessage("no match"),
 			want:     []LoggedRecord{},
 		},
 		{
 			msg:      "filter by snippet",
-			filtered: sink.FilterMessageSnippet("log"),
-			want:     logs[0:4],
+			filtered: logs.FilterMessageSnippet("log"),
+			want:     records[0:4],
 		},
 		{
 			msg:      "filter by snippet and field",
-			filtered: sink.FilterMessageSnippet("a").FilterAttr(slog.Int("b", 2)),
-			want:     logs[1:2],
+			filtered: logs.FilterMessageSnippet("a").FilterAttr(slog.Int("b", 2)),
+			want:     records[1:2],
 		},
 		{
 			msg:      "filter for map",
-			filtered: sink.FilterAttr(slog.Any("map", map[string]string{"a": "b"})),
-			want:     logs[5:6],
+			filtered: logs.FilterAttr(slog.Any("map", map[string]string{"a": "b"})),
+			want:     records[5:6],
 		},
 		{
 			msg:      "filter for slice",
-			filtered: sink.FilterAttr(slog.Any("slice", []string{"a"})),
-			want:     logs[6:7],
+			filtered: logs.FilterAttr(slog.Any("slice", []string{"a"})),
+			want:     records[6:7],
 		},
 		{
 			msg:      "filter field key",
-			filtered: sink.FilterFieldKey("filterMe"),
-			want:     logs[7:9],
+			filtered: logs.FilterFieldKey("filterMe"),
+			want:     records[7:9],
 		},
 		{
 			msg: "filter by arbitrary function",
-			filtered: sink.Filter(func(r LoggedRecord) bool {
+			filtered: logs.Filter(func(r LoggedRecord) bool {
 				return len(r.Attrs) > 1
 			}),
 			want: func() []LoggedRecord {
-				// Do not modify logs slice.
-				w := make([]LoggedRecord, 0, len(logs))
-				w = append(w, logs[0:5]...)
-				w = append(w, logs[7])
+				// Do not modify records slice.
+				w := make([]LoggedRecord, 0, len(records))
+				w = append(w, records[0:5]...)
+				w = append(w, records[7])
 				return w
 			}(),
 		},
 		{
 			msg:      "filter level",
-			filtered: sink.FilterLevelExact(slog.LevelWarn),
-			want:     logs[9:10],
+			filtered: logs.FilterLevelExact(slog.LevelWarn),
+			want:     records[9:10],
 		},
 	}
 
@@ -278,4 +278,30 @@ func TestFilters(t *testing.T) {
 		got := tt.filtered.AllUntimed()
 		assert.Equal(t, tt.want, got, tt.msg)
 	}
+}
+
+func TestMaxLogs(t *testing.T) {
+	handler, logs := New(&HandlerOptions{MaxLogs: 3})
+	logger := slog.New(handler)
+
+	record := slog.NewRecord(time.Time{}, slog.LevelInfo, "log", 0)
+	for i := 0; i < 10; i++ {
+		logger.Info("log", slog.Int("i", i))
+	}
+
+	require.Equal(t, 3, logs.Len(), "Expected only max log to be recorded.")
+	assert.Equal(t, []LoggedRecord{
+		{
+			Record: record,
+			Attrs:  []slog.Attr{slog.Int("i", 7)},
+		},
+		{
+			Record: record,
+			Attrs:  []slog.Attr{slog.Int("i", 8)},
+		},
+		{
+			Record: record,
+			Attrs:  []slog.Attr{slog.Int("i", 9)},
+		},
+	}, logs.AllUntimed())
 }
