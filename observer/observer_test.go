@@ -305,3 +305,18 @@ func TestMaxLogs(t *testing.T) {
 		},
 	}, logs.AllUntimed())
 }
+
+func BenchmarkMaxLogs(b *testing.B) {
+	handler, _ := New(&HandlerOptions{MaxLogs: 3})
+	logger := slog.New(handler)
+
+	// bench with the array shift via copy(o.logs[0:], o.logs[1:])
+	// BenchmarkMaxLogs-8   	  186794	      5473 ns/op	     960 B/op	      20 allocs/op
+	// bench with simple ring buffer implementation
+	// BenchmarkMaxLogs-8   	  210639	      5466 ns/op	     960 B/op	      20 allocs/op
+	for i := 0; i < b.N; i++ {
+		for j := 0; j < 10; j++ {
+			logger.Info("log", slog.Int("i", j))
+		}
+	}
+}
