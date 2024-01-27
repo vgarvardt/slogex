@@ -50,3 +50,10 @@ jobs:
           only-new-issues: ${{ github.event_name == 'pull_request' }}
           args: >
             --config=./.github/linters/.golangci.yml
+
+  codespell:
+    name: Check spelling
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: codespell-project/actions-codespell@v2
