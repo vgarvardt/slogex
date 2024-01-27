@@ -20,11 +20,11 @@ type ObservedLogsDefault struct {
 }
 
 // NewObservedLogsDefault creates and initializes new ObservedLogsDefault.
-// If maxLogx is zero then the number of logs stored is unlimited.
-func NewObservedLogsDefault(maxLogx uint) *ObservedLogsDefault {
-	ol := ObservedLogsDefault{fixed: maxLogx > 0}
-	if maxLogx > 0 {
-		ol.logs = make([]LoggedRecord, 0, maxLogx)
+// If maxLogs is zero then the number of logs stored is unlimited.
+func NewObservedLogsDefault(maxLogs uint) *ObservedLogsDefault {
+	ol := ObservedLogsDefault{fixed: maxLogs > 0}
+	if maxLogs > 0 {
+		ol.logs = make([]LoggedRecord, 0, maxLogs)
 	}
 	return &ol
 }
