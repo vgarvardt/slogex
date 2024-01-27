@@ -22,6 +22,9 @@ func TestObserver(t *testing.T) {
 	t.Run("ObservedLogsDefault", func(t *testing.T) {
 		testObserver(t, &HandlerOptions{ObservedLogs: NewObservedLogsDefault(0)})
 	})
+	t.Run("ObservedLogsRing", func(t *testing.T) {
+		testObserver(t, &HandlerOptions{ObservedLogs: NewObservedLogsRing(0)})
+	})
 }
 
 func testObserver(t *testing.T, ho *HandlerOptions) {
@@ -64,6 +67,9 @@ func TestObserverWith(t *testing.T) {
 	})
 	t.Run("ObservedLogsDefault", func(t *testing.T) {
 		testObserverWith(t, &HandlerOptions{ObservedLogs: NewObservedLogsDefault(0)})
+	})
+	t.Run("ObservedLogsRing", func(t *testing.T) {
+		testObserverWith(t, &HandlerOptions{ObservedLogs: NewObservedLogsRing(0)})
 	})
 }
 
@@ -127,6 +133,9 @@ func TestObserverWithGroup(t *testing.T) {
 	t.Run("ObservedLogsDefault", func(t *testing.T) {
 		testObserverWithGroup(t, &HandlerOptions{ObservedLogs: NewObservedLogsDefault(0)})
 	})
+	t.Run("ObservedLogsRing", func(t *testing.T) {
+		testObserverWithGroup(t, &HandlerOptions{ObservedLogs: NewObservedLogsRing(0)})
+	})
 }
 
 func testObserverWithGroup(t *testing.T, ho *HandlerOptions) {
@@ -176,6 +185,12 @@ func TestFilters(t *testing.T) {
 	})
 	t.Run("ObservedLogsDefault", func(t *testing.T) {
 		testFilters(t, &HandlerOptions{ObservedLogs: NewObservedLogsDefault(0)})
+	})
+	t.Run("ObservedLogsRing", func(t *testing.T) {
+		testFilters(t, &HandlerOptions{ObservedLogs: NewObservedLogsRing(0)})
+	})
+	t.Run("ObservedLogsRing fixed", func(t *testing.T) {
+		testFilters(t, &HandlerOptions{ObservedLogs: NewObservedLogsRing(15)})
 	})
 }
 
@@ -323,6 +338,9 @@ func TestMaxLogs(t *testing.T) {
 	t.Run("ObservedLogsDefault", func(t *testing.T) {
 		testMaxLogs(t, &HandlerOptions{ObservedLogs: NewObservedLogsDefault(3)})
 	})
+	t.Run("ObservedLogsRing", func(t *testing.T) {
+		testMaxLogs(t, &HandlerOptions{ObservedLogs: NewObservedLogsRing(3)})
+	})
 }
 
 func testMaxLogs(t *testing.T, ho *HandlerOptions) {
@@ -349,11 +367,36 @@ func testMaxLogs(t *testing.T, ho *HandlerOptions) {
 			Attrs:  []slog.Attr{slog.Int("i", 9)},
 		},
 	}, logs.AllUntimed())
+
+	takeAll := logs.TakeAll()
+	for i := range takeAll {
+		takeAll[i].Record.Time = time.Time{}
+	}
+
+	assert.Equal(t, []LoggedRecord{
+		{
+			Record: record,
+			Attrs:  []slog.Attr{slog.Int("i", 7)},
+		},
+		{
+			Record: record,
+			Attrs:  []slog.Attr{slog.Int("i", 8)},
+		},
+		{
+			Record: record,
+			Attrs:  []slog.Attr{slog.Int("i", 9)},
+		},
+	}, takeAll)
 }
 
 func BenchmarkMaxLogs(b *testing.B) {
 	b.Run("ObservedLogsDefault", func(b *testing.B) {
+		// BenchmarkMaxLogs/ObservedLogsDefault-8         	  207264	      5596 ns/op	     960 B/op	      20 allocs/op
 		benchmarkMaxLogs(b, &HandlerOptions{ObservedLogs: NewObservedLogsDefault(3)})
+	})
+	b.Run("ObservedLogsRing", func(b *testing.B) {
+		// BenchmarkMaxLogs/ObservedLogsRing-8            	  232134	      5537 ns/op	     960 B/op	      20 allocs/op
+		benchmarkMaxLogs(b, &HandlerOptions{ObservedLogs: NewObservedLogsRing(3)})
 	})
 }
 
