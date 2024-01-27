@@ -10,13 +10,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func assertEmpty(t testing.TB, logs *ObservedLogs) {
+func assertEmpty(t testing.TB, logs ObservedLogs) {
 	assert.Equal(t, 0, logs.Len(), "Expected empty ObservedLogs to have zero length.")
 	assert.Equal(t, []LoggedRecord{}, logs.All(), "Unexpected LoggedRecord in empty ObservedLogs.")
 }
 
 func TestObserver(t *testing.T) {
-	handler, logs := New(nil)
+	t.Run("ObservedLogs not set", func(t *testing.T) {
+		testObserver(t, nil)
+	})
+	t.Run("ObservedLogsDefault", func(t *testing.T) {
+		testObserver(t, &HandlerOptions{ObservedLogs: NewObservedLogsDefault(0)})
+	})
+}
+
+func testObserver(t *testing.T, ho *HandlerOptions) {
+	handler, logs := New(ho)
 	assertEmpty(t, logs)
 
 	t.Run("Enabled", func(t *testing.T) {
@@ -50,7 +59,16 @@ func TestObserver(t *testing.T) {
 }
 
 func TestObserverWith(t *testing.T) {
-	handler1, logs := New(nil)
+	t.Run("ObservedLogs not set", func(t *testing.T) {
+		testObserverWith(t, nil)
+	})
+	t.Run("ObservedLogsDefault", func(t *testing.T) {
+		testObserverWith(t, &HandlerOptions{ObservedLogs: NewObservedLogsDefault(0)})
+	})
+}
+
+func testObserverWith(t *testing.T, ho *HandlerOptions) {
+	handler1, logs := New(ho)
 
 	// need to pad out enough initial fields so that the underlying slice cap()
 	// gets ahead of its len() so that the handler3/4 With append's could choose
@@ -103,7 +121,16 @@ func TestObserverWith(t *testing.T) {
 }
 
 func TestObserverWithGroup(t *testing.T) {
-	handler, logs := New(nil)
+	t.Run("ObservedLogs not set", func(t *testing.T) {
+		testObserverWithGroup(t, nil)
+	})
+	t.Run("ObservedLogsDefault", func(t *testing.T) {
+		testObserverWithGroup(t, &HandlerOptions{ObservedLogs: NewObservedLogsDefault(0)})
+	})
+}
+
+func testObserverWithGroup(t *testing.T, ho *HandlerOptions) {
+	handler, logs := New(ho)
 	logger := slog.New(handler).With(slog.Int("i", 1))
 
 	t.Run("single WithGroup", func(t *testing.T) {
@@ -144,6 +171,15 @@ func TestObserverWithGroup(t *testing.T) {
 }
 
 func TestFilters(t *testing.T) {
+	t.Run("ObservedLogs not set", func(t *testing.T) {
+		testFilters(t, nil)
+	})
+	t.Run("ObservedLogsDefault", func(t *testing.T) {
+		testFilters(t, &HandlerOptions{ObservedLogs: NewObservedLogsDefault(0)})
+	})
+}
+
+func testFilters(t *testing.T, ho *HandlerOptions) {
 	records := []LoggedRecord{
 		{
 			Record: slog.Record{Level: slog.LevelInfo, Message: "log a"},
@@ -191,7 +227,7 @@ func TestFilters(t *testing.T) {
 		},
 	}
 
-	handler, logs := New(nil)
+	handler, logs := New(ho)
 	logger := slog.New(handler)
 	ctx := context.Background()
 
@@ -201,7 +237,7 @@ func TestFilters(t *testing.T) {
 
 	tests := []struct {
 		msg      string
-		filtered *ObservedLogs
+		filtered ObservedLogs
 		want     []LoggedRecord
 	}{
 		{
@@ -281,7 +317,16 @@ func TestFilters(t *testing.T) {
 }
 
 func TestMaxLogs(t *testing.T) {
-	handler, logs := New(&HandlerOptions{MaxLogs: 3})
+	t.Run("ObservedLogs not set", func(t *testing.T) {
+		testMaxLogs(t, &HandlerOptions{MaxLogs: 3})
+	})
+	t.Run("ObservedLogsDefault", func(t *testing.T) {
+		testMaxLogs(t, &HandlerOptions{ObservedLogs: NewObservedLogsDefault(3)})
+	})
+}
+
+func testMaxLogs(t *testing.T, ho *HandlerOptions) {
+	handler, logs := New(ho)
 	logger := slog.New(handler)
 
 	record := slog.NewRecord(time.Time{}, slog.LevelInfo, "log", 0)
@@ -307,13 +352,15 @@ func TestMaxLogs(t *testing.T) {
 }
 
 func BenchmarkMaxLogs(b *testing.B) {
-	handler, _ := New(&HandlerOptions{MaxLogs: 3})
+	b.Run("ObservedLogsDefault", func(b *testing.B) {
+		benchmarkMaxLogs(b, &HandlerOptions{ObservedLogs: NewObservedLogsDefault(3)})
+	})
+}
+
+func benchmarkMaxLogs(b *testing.B, ho *HandlerOptions) {
+	handler, _ := New(ho)
 	logger := slog.New(handler)
 
-	// bench with the array shift via copy(o.logs[0:], o.logs[1:])
-	// BenchmarkMaxLogs-8   	  186794	      5473 ns/op	     960 B/op	      20 allocs/op
-	// bench with simple ring buffer implementation
-	// BenchmarkMaxLogs-8   	  210639	      5466 ns/op	     960 B/op	      20 allocs/op
 	for i := 0; i < b.N; i++ {
 		for j := 0; j < 10; j++ {
 			logger.Info("log", slog.Int("i", j))
