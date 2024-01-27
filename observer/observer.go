@@ -3,157 +3,35 @@ package observer
 import (
 	"context"
 	"log/slog"
-	"reflect"
-	"strings"
-	"sync"
-	"time"
 )
 
-// ObservedLogs is a concurrency-safe, ordered collection of observed logs.
-type ObservedLogs struct {
-	mu sync.RWMutex
-
-	fixed bool
-	size  int
-	logs  []LoggedRecord
+// ObservedLogs is a collection of observed logs.
+type ObservedLogs interface {
+	Add(record slog.Record, attrs []slog.Attr)
+	// Len returns the number of items in the collection.
+	Len() int
+	// All returns a copy of all the observed logs.
+	All() []LoggedRecord
+	// TakeAll returns a copy of all the observed logs, and truncates the observed slice.
+	TakeAll() []LoggedRecord
+	// AllUntimed returns a copy of all the observed logs, but overwrites the
+	// observed timestamps with time.Time's zero value. This is useful when making
+	// assertions in tests.
+	AllUntimed() []LoggedRecord
+	// Filter returns a copy of this ObservedLogsDefault containing only those entries
+	// for which the provided function returns true.
+	Filter(keep func(LoggedRecord) bool) ObservedLogs
+	// FilterLevelExact filters entries to those logged at exactly the given level.
+	FilterLevelExact(level slog.Level) ObservedLogs
+	// FilterMessage filters entries to those that have the specified message.
+	FilterMessage(msg string) ObservedLogs
+	// FilterMessageSnippet filters entries to those that have a message containing the specified snippet.
+	FilterMessageSnippet(snippet string) ObservedLogs
+	// FilterAttr filters entries to those that have the specified attribute.
+	FilterAttr(attr slog.Attr) ObservedLogs
+	// FilterFieldKey filters entries to those that have the specified key.
+	FilterFieldKey(key string) ObservedLogs
 }
-
-// Len returns the number of items in the collection.
-func (o *ObservedLogs) Len() int {
-	o.mu.RLock()
-	n := len(o.logs)
-	o.mu.RUnlock()
-	return n
-}
-
-// All returns a copy of all the observed logs.
-func (o *ObservedLogs) All() []LoggedRecord {
-	o.mu.RLock()
-	ret := make([]LoggedRecord, len(o.logs))
-	copy(ret, o.logs)
-	o.mu.RUnlock()
-	return ret
-}
-
-// TakeAll returns a copy of all the observed logs, and truncates the observed slice.
-func (o *ObservedLogs) TakeAll() []LoggedRecord {
-	o.mu.Lock()
-	ret := o.logs
-	o.logs = nil
-	o.mu.Unlock()
-	return ret
-}
-
-// AllUntimed returns a copy of all the observed logs, but overwrites the
-// observed timestamps with time.Time's zero value. This is useful when making
-// assertions in tests.
-func (o *ObservedLogs) AllUntimed() []LoggedRecord {
-	ret := o.All()
-	for i := range ret {
-		ret[i].Record.Time = time.Time{}
-	}
-	return ret
-}
-
-// FilterLevelExact filters entries to those logged at exactly the given level.
-func (o *ObservedLogs) FilterLevelExact(level slog.Level) *ObservedLogs {
-	return o.Filter(func(r LoggedRecord) bool {
-		return r.Record.Level == level
-	})
-}
-
-// FilterMessage filters entries to those that have the specified message.
-func (o *ObservedLogs) FilterMessage(msg string) *ObservedLogs {
-	return o.Filter(func(r LoggedRecord) bool {
-		return r.Record.Message == msg
-	})
-}
-
-// FilterMessageSnippet filters entries to those that have a message containing the specified snippet.
-func (o *ObservedLogs) FilterMessageSnippet(snippet string) *ObservedLogs {
-	return o.Filter(func(r LoggedRecord) bool {
-		return strings.Contains(r.Record.Message, snippet)
-	})
-}
-
-// FilterAttr filters entries to those that have the specified attribute.
-func (o *ObservedLogs) FilterAttr(attr slog.Attr) *ObservedLogs {
-	return o.Filter(func(e LoggedRecord) bool {
-		return filterAttr(e.Attrs, attr)
-	})
-}
-
-func filterAttr(attrs []slog.Attr, attr slog.Attr) bool {
-	for _, a := range attrs {
-		kind := a.Value.Kind()
-		if kind == slog.KindGroup {
-			if filterAttr(a.Value.Group(), attr) {
-				return true
-			}
-			continue
-		}
-
-		// a.Equal(attr) does this as well, but we're going to compare Any kind using reflect to avoid
-		// panicking when comparing complex types.
-		if a.Key != attr.Key || kind != attr.Value.Kind() {
-			continue
-		}
-
-		if (kind == slog.KindAny || kind == slog.KindLogValuer) && reflect.DeepEqual(a.Value.Any(), attr.Value.Any()) {
-			return true
-		}
-
-		if a.Equal(attr) {
-			return true
-		}
-	}
-	return false
-}
-
-// FilterFieldKey filters entries to those that have the specified key.
-func (o *ObservedLogs) FilterFieldKey(key string) *ObservedLogs {
-	return o.Filter(func(r LoggedRecord) bool {
-		for _, a := range r.Attrs {
-			if a.Key == key {
-				return true
-			}
-		}
-		return false
-	})
-}
-
-// Filter returns a copy of this ObservedLogs containing only those entries
-// for which the provided function returns true.
-func (o *ObservedLogs) Filter(keep func(LoggedRecord) bool) *ObservedLogs {
-	o.mu.RLock()
-	defer o.mu.RUnlock()
-
-	var filtered []LoggedRecord
-	for _, entry := range o.logs {
-		if keep(entry) {
-			filtered = append(filtered, entry)
-		}
-	}
-	return &ObservedLogs{logs: filtered}
-}
-
-// add stores log record to the collection. Expects a record that is already prepared for storing:
-// - has no attributes
-// - attributes collection is passed alongside
-func (o *ObservedLogs) add(record slog.Record, attrs []slog.Attr) {
-	o.mu.Lock()
-	o.size++
-	if o.fixed && o.size > cap(o.logs) {
-		copy(o.logs[0:], o.logs[1:])
-		o.size--
-		o.logs[o.size-1] = LoggedRecord{Record: record, Attrs: attrs}
-	} else {
-		o.logs = append(o.logs, LoggedRecord{Record: record, Attrs: attrs})
-	}
-	o.mu.Unlock()
-}
-
-var _ slog.Handler = (*contextObserver)(nil)
 
 // HandlerOptions are options for an observer Handler.
 type HandlerOptions struct {
@@ -166,26 +44,33 @@ type HandlerOptions struct {
 
 	// MaxLogs is the maximum number of logs to store. If this is zero, the
 	// default, then the number of logs stored is unlimited.
-	MaxLogs int
+	// If ObservedLogs is set, then MaxLogs is ignored.
+	MaxLogs uint
+
+	// ObservedLogs collection implementation. If not set then ObservedLogsDefault is used.
+	// When set - MaxLogs is ignored.
+	ObservedLogs ObservedLogs
 }
+
+var _ slog.Handler = (*contextObserver)(nil)
 
 type contextObserver struct {
 	opts   HandlerOptions
-	logs   *ObservedLogs
+	logs   ObservedLogs
 	attrs  []slog.Attr
 	groups []slog.Attr
 }
 
 // New creates new slog.Handler that buffers logs in memory.
 // It's particularly useful in tests.
-func New(opts *HandlerOptions) (slog.Handler, *ObservedLogs) {
+func New(opts *HandlerOptions) (slog.Handler, ObservedLogs) {
 	if opts == nil {
 		opts = &HandlerOptions{}
 	}
 
-	ol := &ObservedLogs{fixed: opts.MaxLogs > 0}
-	if opts.MaxLogs > 0 {
-		ol.logs = make([]LoggedRecord, 0, opts.MaxLogs)
+	ol := opts.ObservedLogs
+	if ol == nil {
+		ol = NewObservedLogsDefault(opts.MaxLogs)
 	}
 
 	return &contextObserver{
@@ -229,7 +114,7 @@ func (c contextObserver) Handle(_ context.Context, record slog.Record) error {
 		attrs = append(recordAttrs, attrs...)
 	}
 
-	c.logs.add(rc, attrs)
+	c.logs.Add(rc, attrs)
 	return nil
 }
 
