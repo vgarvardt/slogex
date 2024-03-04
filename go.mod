@@ -3,7 +3,7 @@ module github.com/vgarvardt/slogex
 go 1.21
 
 require (
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	go.uber.org/fx v1.20.1
 )
 
