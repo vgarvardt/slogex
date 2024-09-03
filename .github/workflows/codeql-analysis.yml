@@ -3,11 +3,11 @@ name: "CodeQL"
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
   schedule:
-    - cron: '0 9 * * 1'
+    - cron: "0 9 * * 1"
 
 jobs:
   analyze:
@@ -25,7 +25,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: './go.mod'
+          go-version-file: "./go.mod"
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
