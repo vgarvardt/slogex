@@ -7,7 +7,7 @@ concurrency:
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
 
 jobs:
@@ -34,7 +34,7 @@ jobs:
         env:
           VALIDATE_ALL_CODEBASE: ${{ github.event_name != 'pull_request' }}
           DEFAULT_BRANCH: master
-          FILTER_REGEX_EXCLUDE: 'LICENSE'
+          FILTER_REGEX_EXCLUDE: "LICENSE"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # go validator works pretty bad in super-linter, we'll use the original one
           VALIDATE_GO: false
@@ -43,7 +43,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: './go.mod'
+          go-version-file: "./go.mod"
 
       - name: Lint Golang
         uses: golangci/golangci-lint-action@v6
