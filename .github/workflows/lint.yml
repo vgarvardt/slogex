@@ -41,9 +41,9 @@ jobs:
           VALIDATE_CHECKOV: false
 
           # it forces all list items to be on a single line in .github/linters/.jscpd.json that is not pretty at all
-          FIX_JSON_PRETTIER: false
+          VALIDATE_JSON_PRETTIER: false
           # reports README.md but does not fix anything, linter should be enough
-          FIX_MARKDOWN_PRETTIER: false
+          VALIDATE_MARKDOWN_PRETTIER: false
 
       - name: Setup Go
         uses: actions/setup-go@v5
