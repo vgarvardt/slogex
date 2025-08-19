@@ -45,6 +45,10 @@ jobs:
           # reports README.md but does not fix anything, linter should be enough
           VALIDATE_MARKDOWN_PRETTIER: false
 
+      - name: Super-linter summary
+        if: failure()
+        run: cat super-linter-output/super-linter-summary.md
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
