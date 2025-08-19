@@ -45,11 +45,6 @@ jobs:
           # reports README.md but does not fix anything, linter should be enough
           VALIDATE_MARKDOWN_PRETTIER: false
 
-          FIX_YAML_PRETTIER: true
-
-      - name: Super-linter diff
-        run: git diff --exit-code
-
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
